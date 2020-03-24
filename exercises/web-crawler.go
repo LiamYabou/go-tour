@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
 type Fetcher interface {
@@ -18,6 +17,7 @@ type SafeCounter struct {
 }
 
 var c SafeCounter = SafeCounter{ v: make(map[string]bool) }
+var wg sync.WaitGroup
 
 func (c *SafeCounter) CheckVisited(url string) bool {
 	c.mux.Lock()
@@ -35,6 +35,7 @@ func (c * SafeCounter) Add(url string) {
 // Crawl uses fetcher to recursively crawl
 // pages starting with url, to a maximum of depth.
 func Crawl(url string, depth int, fetcher Fetcher) {
+	defer wg.Done()
 	if depth <= 0 {
 		return
 	}
@@ -50,14 +51,16 @@ func Crawl(url string, depth int, fetcher Fetcher) {
 	}
 	fmt.Printf("found: %s %q\n", url, body)
 	for _, u := range urls {
+		wg.Add(1)
 		go Crawl(u, depth-1, fetcher)
 	}
 	return
 }
 
 func main() {
-	go Crawl("https://golang.org/", 4, fetcher)
-	time.Sleep(1 * time.Nanosecond)
+	wg.Add(1)
+	Crawl("https://golang.org/", 4, fetcher)
+	wg.Wait()
 }
 
 // fakeFetcher is Fetcher that returns canned results.
